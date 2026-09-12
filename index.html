@@ -667,7 +667,7 @@ footer{background:linear-gradient(180deg,#51708C 0%,#2C4359 26%,var(--navy-deep)
   </linearGradient>
 </defs></svg>
 
-<header class="hero-static" data-tc="#0E1F30">
+<header class="hero-static" data-tc="#0E1F30" style="background:linear-gradient(180deg,#2B3D51 0%,#4E6E8A 55%,#B1C7D2 100%)">
   <div class="roadwrap" aria-hidden="true">
       <svg viewBox="0 0 1000 2000" preserveAspectRatio="xMidYMid slice">
         <defs><linearGradient id="camGradZs" gradientUnits="userSpaceOnUse" x1="150" y1="120" x2="900" y2="1990">
@@ -843,13 +843,37 @@ footer{background:linear-gradient(180deg,#51708C 0%,#2C4359 26%,var(--navy-deep)
 
 <script>
 (function(){
-  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:0.16});
-  document.querySelectorAll('.reveal, .reveal-group').forEach(function(el){io.observe(el);});
+  var root=document.documentElement;
+  function log(err){ if(window.console && console.error) console.error('[enlaza] ', err); }
+  function mostrarTodo(){
+    try{ Array.prototype.forEach.call(document.querySelectorAll('.reveal, .reveal-group'), function(el){ el.classList.add('in'); }); }catch(e){}
+  }
+  var reduce=false;
+  try{ reduce=matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ log(e); }
+
+  /* apariciones al hacer scroll: si fallan, se muestra todo de una vez */
+  try{
+    if(!('IntersectionObserver' in window)) throw new Error('IntersectionObserver no disponible');
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:0.16});
+    document.querySelectorAll('.reveal, .reveal-group').forEach(function(el){io.observe(el);});
+  }catch(err){ log(err); mostrarTodo(); }
+
   if(reduce) return;
-  document.documentElement.classList.add('scrub');
+
+  /* animacion del hero: ante cualquier error vuelve al hero fijo, nunca queda en blanco */
+  var dead=false;
+  function fail(err){
+    if(dead) return; dead=true;
+    try{ root.classList.remove('scrub'); }catch(e){}
+    log(err);
+  }
+
+  try{
+  root.classList.add('scrub');
   var hero=document.querySelector('.hero-scrub');
-  var dr=document.getElementById('drawRoad'); var L=dr.getTotalLength(); dr.style.strokeDasharray=L; dr.style.strokeDashoffset=L;
+  var dr=document.getElementById('drawRoad');
+  if(!hero || !dr || typeof dr.getTotalLength!=='function') throw new Error('falta el hero animado o el trazo del camino');
+  var L=dr.getTotalLength(); dr.style.strokeDasharray=L; dr.style.strokeDashoffset=L;
   var band1=document.getElementById('band1'),band2=document.getElementById('band2'),band3=document.getElementById('band3'),settle=document.getElementById('settle'),hint=document.getElementById('hint');
   function clamp(v,a,b){return v<a?a:(v>b?b:v);}
   function ss(p,e0,e1){var t=clamp((p-e0)/(e1-e0),0,1);return t*t*(3-2*t);}
@@ -860,6 +884,8 @@ footer{background:linear-gradient(180deg,#51708C 0%,#2C4359 26%,var(--navy-deep)
   var sb=document.getElementById('settleBg');
   var target=0, shown=0, rafId=null, lastTick=0;
   function apply(p){
+    if(dead) return;
+    try{
     var draw=clamp(p/0.74,0,1);
     var off=L*(1-draw);
     if(Math.abs(off-lastOff)>0.3){lastOff=off; dr.style.strokeDashoffset=off;}
@@ -878,6 +904,7 @@ footer{background:linear-gradient(180deg,#51708C 0%,#2C4359 26%,var(--navy-deep)
     if(_st && p>=0.88 && !_st.classList.contains('arrived')) _st.classList.add('arrived');
     var sbo=Math.round(ss(p,0.72,0.76)*1000)/1000;
     if(sbo!==lastSb){lastSb=sbo; sb.style.opacity=sbo;}
+    }catch(err){ fail(err); }
   }
   function tick(now){
     var dt=Math.min(100,now-(lastTick||now)); lastTick=now;
@@ -885,10 +912,14 @@ footer{background:linear-gradient(180deg,#51708C 0%,#2C4359 26%,var(--navy-deep)
     if(Math.abs(target-shown)<0.0004){shown=target;rafId=null;lastTick=0;} else {rafId=requestAnimationFrame(tick);}
     apply(shown);
   }
-  function onScroll(){ target=heroP(); if(rafId===null&&heroOn) rafId=requestAnimationFrame(tick); }
+  function onScroll(){
+    if(dead) return;
+    try{ target=heroP(); if(rafId===null&&heroOn) rafId=requestAnimationFrame(tick); }catch(err){ fail(err); }
+  }
   addEventListener('scroll',onScroll,{passive:true}); addEventListener('resize',onScroll);
-  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',function(e){if(e.matches)location.reload();});
+  try{ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',function(e){if(e.matches)location.reload();}); }catch(e){}
   apply(0);
+  }catch(err){ fail(err); }
 })();
 </script>
 
